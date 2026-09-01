@@ -1,0 +1,80 @@
+:root {
+  --cream: #FBF6ED;
+  --ink: #201A2B;
+  --ink-soft: #6B6577;
+  --pink: #EC4899;
+  --pink-soft: #FDF2F8;
+  --panel-dark: #241E33;
+  --panel-card: #322B45;
+  /* 👉 Morado del logo, para el fondo de la barra superior. Este tono es
+     un morado cercano al de tu logo — si no es exactamente el mismo, abre
+     tu logo en cualquier "selector de color" (photopea.com, o el cuentagotas
+     de Photoshop/Figma) y reemplaza este código de 6 letras/números. */
+  --brand-purple: #2a1150;
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --yellow: #FACC15;
+  --blue: #3B82F6;
+  --border: #ECE6D9;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+}
+
+/* 👉 Fuentes reales de las etiquetas. Copia los archivos a public/fonts/
+   con estos mismos nombres (o cambia la ruta aquí si les pones otro nombre). */
+@font-face {
+  font-family: 'LetsPlay';
+  src: url('/fonts/LetsPlay.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PizzaTime';
+  src: url('/fonts/PizzaTime.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KGMissSterward';
+  src: url('/fonts/KGMissSteward.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--pink);
+  color: white;
+}
