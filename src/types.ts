@@ -18,6 +18,7 @@ export interface SizeOption {
   widthCm: number // ancho real en cm, para que la vista previa use la misma proporción
   heightCm: number // alto real en cm, para que la vista previa use la misma proporción
   images?: string[] // opcionales: varias fotos de ejemplo de esa medida, ej. ['/sizes/3x2-1.png', '/sizes/3x2-2.png']
+  compareImage?: string // opcional: foto de ejemplo para comparar tamaños, ej. '/sizes/compare/3x2.png'
 }
 
 export interface FontOption {
@@ -57,6 +58,7 @@ export interface Order {
   note: string | null
   wants_preview: boolean
   status: OrderStatus
+  reference_images?: string[] | null // rutas en Supabase Storage (bucket "referencias-pedido"), no las imágenes en sí
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {

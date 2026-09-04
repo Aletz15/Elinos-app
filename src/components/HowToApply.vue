@@ -38,18 +38,18 @@ const open = ref(false)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: white;
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 2px solid var(--pink);
   border-radius: var(--radius-md);
   padding: 12px 16px;
   font-size: 14px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--pink);
 }
 
 .chevron {
   transition: transform 0.15s ease;
-  color: var(--ink-soft);
+  color: #E8A6C7;
 }
 
 .chevron.rotated {
@@ -58,10 +58,9 @@ const open = ref(false)
 
 .howto-content {
   margin-top: 12px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 16px;
+  background: transparent;
+  border: none;
+  padding: 4px 4px 0;
 }
 
 .howto-video {
@@ -92,8 +91,8 @@ const open = ref(false)
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--pink-soft);
-  color: var(--pink);
+  background: var(--yellow);
+  color: var(--brand-purple);
   font-size: 12px;
   font-weight: 800;
   display: flex;
@@ -104,11 +103,12 @@ const open = ref(false)
 .howto-steps strong {
   font-size: 13px;
   display: block;
+  color: white;
 }
 
 .howto-steps p {
   font-size: 12px;
-  color: var(--ink-soft);
+  color: #D9C3E2;
   margin: 2px 0 0;
 }
 </style>

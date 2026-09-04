@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { businessAddress, businessLandmark, googleMapsEmbedSrc, googleMapsLink } from '../data/location'
+import SectionTitle from './SectionTitle.vue'
 </script>
 
 <template>
   <section class="location-wrap">
-    <h2 class="location-title">📍 Dónde recoger tu pedido</h2>
+    <SectionTitle icon="pin">Dónde recoger tu pedido</SectionTitle>
 
     <div class="location-body">
       <div class="location-info">
@@ -39,15 +40,9 @@ import { businessAddress, businessLandmark, googleMapsEmbedSrc, googleMapsLink }
 <style scoped>
 .location-wrap {
   margin-bottom: 24px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-}
-
-.location-title {
-  font-size: 15px;
-  margin: 0 0 10px;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .location-body {
@@ -62,7 +57,12 @@ import { businessAddress, businessLandmark, googleMapsEmbedSrc, googleMapsLink }
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  background: var(--cream);
+  /* 👉 Antes var(--cream) — se veía como un parche blanco suelto sobre
+     el panel morado. Se cambia al mismo fondo oscuro translúcido que ya
+     usan las tarjetas de tamaño/letra, para que todo el panel se vea
+     consistente. */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
 }
@@ -70,7 +70,9 @@ import { businessAddress, businessLandmark, googleMapsEmbedSrc, googleMapsLink }
 .location-address {
   margin: 0;
   font-size: 13px;
-  color: var(--ink-soft);
+  /* 👉 Antes var(--ink-soft), un gris oscuro pensado para fondo claro.
+     Con el fondo oscuro nuevo necesita ser un tono claro para leerse. */
+  color: #D9C3E2;
   line-height: 1.5;
 }
 
@@ -98,7 +100,7 @@ import { businessAddress, businessLandmark, googleMapsEmbedSrc, googleMapsLink }
   height: 220px;
   border-radius: var(--radius-md);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 @media (min-width: 480px) {

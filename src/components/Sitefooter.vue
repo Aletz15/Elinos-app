@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { LOGO_IMAGE } from '../data/branding'
+import { LOGO_IMAGE, FACEBOOK_URL } from '../data/branding'
+import { buildContactWhatsappLink, buildContactWhatsappCleanLink } from '../lib/whatsapp'
 
 const year = new Date().getFullYear()
+
+// 👉 Abre WhatsApp con el mensaje completo. Se saca del template como
+// función normal porque la flecha inline `() => window.open(...)` le
+// causaba error de tipos a vue-tsc en el @click.
+function openWhatsappSocial() {
+  window.open(buildContactWhatsappLink(), '_blank', 'noopener')
+}
 </script>
 
 <template>
@@ -19,13 +27,28 @@ const year = new Date().getFullYear()
 
     <div class="footer-divider" />
 
+    <div class="footer-social">
+      <a
+        :href="buildContactWhatsappCleanLink()"
+        target="_blank"
+        rel="noopener"
+        aria-label="WhatsApp"
+        @click.prevent="openWhatsappSocial"
+      >
+        <img src="/icon/whatsapp.png" alt="WhatsApp" />
+      </a>
+      <a v-if="FACEBOOK_URL" :href="FACEBOOK_URL" target="_blank" rel="noopener" aria-label="Facebook">
+        <img src="/icon/facebook.png" alt="Facebook" />
+      </a>
+    </div>
+
     <p class="footer-copy">© {{ year }} Elinos</p>
   </footer>
 </template>
 
 <style scoped>
 .site-footer {
-  background: var(--panel-dark);
+  background: #441058;
   border-radius: var(--radius-lg);
   padding: 36px 24px 28px;
   margin-top: 32px;
@@ -71,8 +94,7 @@ const year = new Date().getFullYear()
 
 .footer-text strong {
   font-size: 18px;
-  color: var(--yellow);
-  font-family: 'LetsPlay', 'Segoe UI', sans-serif;
+  color: white;
 }
 
 .footer-text span {
@@ -87,6 +109,31 @@ const year = new Date().getFullYear()
   background: var(--pink);
   border-radius: 2px;
   margin: 22px 0 16px;
+}
+
+.footer-social {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.footer-social a {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  transition: transform 0.15s ease;
+}
+
+.footer-social a:hover {
+  transform: scale(1.08);
+}
+
+.footer-social img {
+  width: 100%;
+  height: 100%; 
+  object-fit: cover;
 }
 
 .footer-copy {

@@ -1,71 +1,87 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { supabase } from '../lib/supabase'
 import { orderCode } from '../lib/whatsapp'
+import {
+  orders,
+  ordersLoading,
+  ordersLoadError,
+  changeOrderStatus,
+  deleteOrderById,
+  loadOrders,
+  startOrdersRealtime,
+  resetOrdersState,
+  newOrderAlert,
+  unlockAudioForNotifications,
+  notificationPermission,
+  requestNotificationPermission,
+  welcomeMessage,
+  ensureWelcomeMessage,
+} from '../lib/ordersstore'
 import OrderCard from './OrderCard.vue'
-import type { Order, OrderStatus } from '../types'
+import type { OrderStatus } from '../types'
+import type { Session } from '@supabase/supabase-js'
 
 type FilterTab = 'todos' | OrderStatus
 
-const isUnlocked = ref(sessionStorage.getItem('elinos_panel_unlocked') === '1')
-const passwordInput = ref('')
-const passwordError = ref('')
+// 👉 Login real con Supabase Auth (correo + contraseña que creaste en el
+// dashboard de Supabase → Authentication → Users). Ya no se compara nada
+// contra una variable de entorno visible en el navegador.
+const session = ref<Session | null>(null)
+const checkingSession = ref(true)
 
-function tryUnlock() {
-  const expected = import.meta.env.VITE_PANEL_PASSWORD as string | undefined
-  if (!expected || passwordInput.value === expected) {
-    isUnlocked.value = true
-    sessionStorage.setItem('elinos_panel_unlocked', '1')
-    loadOrders()
-  } else {
-    passwordError.value = 'Contraseña incorrecta.'
+const emailInput = ref('')
+const passwordInput = ref('')
+const loginError = ref('')
+const loggingIn = ref(false)
+
+async function tryLogin() {
+  unlockAudioForNotifications() // 👈 este clic real desbloquea el audio para la sesión
+  loginError.value = ''
+  loggingIn.value = true
+  const { error } = await supabase.auth.signInWithPassword({
+    email: emailInput.value.trim(),
+    password: passwordInput.value,
+  })
+  loggingIn.value = false
+  if (error) {
+    loginError.value = 'Correo o contraseña incorrectos.'
+    return
   }
+  passwordInput.value = ''
 }
 
-const orders = ref<Order[]>([])
-const loading = ref(true)
-const loadError = ref('')
+async function logout() {
+  await supabase.auth.signOut()
+  resetOrdersState()
+}
+
 const activeTab = ref<FilterTab>('todos')
 const search = ref('')
 
-async function loadOrders() {
-  loading.value = true
-  loadError.value = ''
-  try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-    orders.value = (data ?? []) as Order[]
-  } catch (err) {
-    loadError.value = 'No se pudieron cargar los pedidos. Revisa tu configuración de Supabase (.env).'
-    console.error(err)
-  } finally {
-    loading.value = false
-  }
-}
-
+// Los datos y funciones de pedidos (orders, ordersLoading, loadOrders,
+// changeOrderStatus, deleteOrderById, etc.) ahora viven en ordersStore.ts,
+// fuera de este componente — así se quedan en memoria mientras navegas y
+// no hay que volver a pedirlos ni mostrar "Cargando…" cada vez que
+// regresas a /panel.
 async function changeStatus(id: string, status: OrderStatus) {
-  const target = orders.value.find((o) => o.id === id)
-  if (target) target.status = status // optimista
-  const { error } = await supabase.from('orders').update({ status }).eq('id', id)
-  if (error) {
-    console.error(error)
-    loadOrders() // revertir si falló
-  }
+  await changeOrderStatus(id, status)
 }
 
 async function deleteOrder(id: string) {
-  const previous = orders.value
-  orders.value = orders.value.filter((o) => o.id !== id) // optimista
-  const { error } = await supabase.from('orders').delete().eq('id', id)
-  if (error) {
-    console.error(error)
-    orders.value = previous // revertir si falló
-  }
+  await deleteOrderById(id)
 }
+
+// 🔔 La notita del pedido nuevo se borra sola después de unos segundos.
+let alertTimeout: ReturnType<typeof setTimeout> | null = null
+watch(newOrderAlert, (alert) => {
+  if (alertTimeout) clearTimeout(alertTimeout)
+  if (alert) {
+    alertTimeout = setTimeout(() => {
+      newOrderAlert.value = null
+    }, 6000)
+  }
+})
 
 const counts = computed(() => ({
   pendiente_pago: orders.value.filter((o) => o.status === 'pendiente_pago').length,
@@ -100,58 +116,137 @@ const filteredOrders = computed(() => {
   return list
 })
 
-let channel: ReturnType<typeof supabase.channel> | null = null
+onMounted(async () => {
+  // 🔓 Cualquier interacción tuya dentro del panel desbloquea el audio para
+  // esta pestaña — cubre el caso de que ya tenías sesión guardada (no diste
+  // clic en "Entrar" en esta carga, así que ese desbloqueo no se disparó).
+  // Se escuchan varios tipos de evento (clic, tecla, toque) por si acaso,
+  // y NO se quita el listener después del primero: es una operación barata
+  // y así cualquier interacción tuya sigue intentando desbloquear hasta
+  // que el navegador realmente lo permita.
+  ;['click', 'keydown', 'touchstart'].forEach((eventName) => {
+    document.addEventListener(eventName, unlockAudioForNotifications)
+  })
 
-onMounted(() => {
-  if (isUnlocked.value) loadOrders()
+  // Revisa si ya había una sesión guardada (para no pedir login otra vez
+  // cada vez que recargas la página, mientras la sesión siga vigente).
+  const { data } = await supabase.auth.getSession()
+  session.value = data.session
+  checkingSession.value = false
 
-  channel = supabase
-    .channel('orders-realtime')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+  if (session.value) {
+    loadOrders()
+    startOrdersRealtime()
+    ensureWelcomeMessage(session.value.user?.email)
+  }
+
+  // Se actualiza automáticamente si haces login, logout, o si la sesión
+  // expira en otra pestaña.
+  supabase.auth.onAuthStateChange((_event, newSession) => {
+    const hadSession = !!session.value
+    session.value = newSession
+    if (newSession) {
       loadOrders()
-    })
-    .subscribe()
+      startOrdersRealtime()
+      // ensureWelcomeMessage ya trae su propio guard (no genera uno nuevo
+      // si ya hay un mensaje guardado), así que da igual si esto se
+      // dispara por un login real o porque el navegador reconfirma la
+      // sesión al volver a esta pantalla — el mensaje solo cambia de
+      // verdad después de un logout.
+      ensureWelcomeMessage(newSession.user?.email)
+    } else if (hadSession) {
+      resetOrdersState()
+    }
+  })
 })
 
-onUnmounted(() => {
-  if (channel) supabase.removeChannel(channel)
-})
+// 👉 Ya no detenemos la conexión en tiempo real al desmontar (al salir de
+// /panel): así, si vuelves, los pedidos ya están cargados y al día, sin
+// parpadeo. Se detiene solo al cerrar sesión (ver logout / resetOrdersState).
+onUnmounted(() => {})
 </script>
 
 <template>
-  <div v-if="!isUnlocked" class="lock">
+  <div v-if="checkingSession" class="status-msg">Cargando…</div>
+
+  <div v-else-if="!session" class="lock">
     <div class="lock-card">
       <h2>Panel de pedidos</h2>
-      <p>Ingresa la contraseña del taller para continuar.</p>
+      <p>Inicia sesión para continuar.</p>
+      <input
+        v-model="emailInput"
+        type="email"
+        placeholder="Correo"
+        autocomplete="username"
+        @keyup.enter="tryLogin"
+      />
       <input
         v-model="passwordInput"
         type="password"
         placeholder="Contraseña"
-        @keyup.enter="tryUnlock"
+        autocomplete="current-password"
+        @keyup.enter="tryLogin"
       />
-      <button type="button" @click="tryUnlock">Entrar</button>
-      <p v-if="passwordError" class="err">{{ passwordError }}</p>
+      <button type="button" :disabled="loggingIn" @click="tryLogin">
+        {{ loggingIn ? 'Entrando…' : 'Entrar' }}
+      </button>
+      <p v-if="loginError" class="err">{{ loginError }}</p>
     </div>
   </div>
 
   <div v-else class="panel">
-    <header class="panel-head">
-      <div class="title">
-        <span class="dot" />
-        <h2>Panel de pedidos</h2>
-      </div>
-      <nav class="tabs">
-        <button :class="{ active: activeTab === 'todos' }" @click="activeTab = 'todos'">Todos</button>
-        <button :class="{ active: activeTab === 'pendiente_pago' }" @click="activeTab = 'pendiente_pago'">
-          Pendiente pago
+    <!-- 📌 Pegajoso: título, pestañas, cerrar sesión y buscador se quedan
+         a la vista mientras haces scroll en la lista de pedidos (son los
+         controles que usas todo el tiempo). Las tarjetitas de conteo se
+         quedan fuera a propósito, para no comerse pantalla útil en celular. -->
+    <div class="panel-sticky">
+      <transition name="alert-fade">
+        <div v-if="newOrderAlert" class="new-order-alert">
+          🔔 Nuevo pedido de <strong>{{ newOrderAlert.customer_name }}</strong>
+          <button type="button" class="alert-close" @click="newOrderAlert = null">✕</button>
+        </div>
+      </transition>
+
+      <header class="panel-head">
+        <div class="title">
+          <div class="title-main">
+            <span class="dot" />
+            <h2>Panel de pedidos</h2>
+          </div>
+          <p v-if="welcomeMessage" class="welcome-line">{{ welcomeMessage }}</p>
+        </div>
+        <nav class="tabs">
+          <button :class="{ active: activeTab === 'todos' }" @click="activeTab = 'todos'">Todos</button>
+          <button :class="{ active: activeTab === 'pendiente_pago' }" @click="activeTab = 'pendiente_pago'">
+            Pendiente pago
+          </button>
+          <button :class="{ active: activeTab === 'nuevo' }" @click="activeTab = 'nuevo'">Nuevo</button>
+          <button :class="{ active: activeTab === 'en_produccion' }" @click="activeTab = 'en_produccion'">
+            En producción
+          </button>
+          <button :class="{ active: activeTab === 'enviada' }" @click="activeTab = 'enviada'">Enviada</button>
+        </nav>
+        <button
+          v-if="notificationPermission === 'default'"
+          type="button"
+          class="notif-btn"
+          @click="requestNotificationPermission"
+        >
+          🔔 Activar notificaciones
         </button>
-        <button :class="{ active: activeTab === 'nuevo' }" @click="activeTab = 'nuevo'">Nuevo</button>
-        <button :class="{ active: activeTab === 'en_produccion' }" @click="activeTab = 'en_produccion'">
-          En producción
-        </button>
-        <button :class="{ active: activeTab === 'enviada' }" @click="activeTab = 'enviada'">Enviada</button>
-      </nav>
-    </header>
+        <span v-else-if="notificationPermission === 'denied'" class="notif-blocked" title="Las bloqueaste en el navegador. Actívalas desde el candado 🔒 junto a la URL.">
+          🔕 Notificaciones bloqueadas
+        </span>
+        <button type="button" class="logout-btn" @click="logout">Cerrar sesión</button>
+      </header>
+
+      <input
+        v-model="search"
+        type="text"
+        class="search"
+        placeholder="Buscar por código (#A3F2), nombre o WhatsApp…"
+      />
+    </div>
 
     <div class="stats">
       <div class="stat">
@@ -172,15 +267,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <input
-      v-model="search"
-      type="text"
-      class="search"
-      placeholder="Buscar por código (#A3F2), nombre o WhatsApp…"
-    />
-
-    <p v-if="loading" class="status-msg">Cargando pedidos…</p>
-    <p v-else-if="loadError" class="status-msg err">{{ loadError }}</p>
+    <p v-if="ordersLoading" class="status-msg">Cargando pedidos…</p>
+    <p v-else-if="ordersLoadError" class="status-msg err">{{ ordersLoadError }}</p>
     <p v-else-if="filteredOrders.length === 0" class="status-msg">No hay pedidos en esta categoría todavía.</p>
 
     <div v-else class="order-grid">
@@ -239,6 +327,10 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
+.lock-card button:disabled {
+  opacity: 0.6;
+}
+
 .err {
   color: #DC2626;
   font-size: 12px;
@@ -252,6 +344,29 @@ onUnmounted(() => {
   color: white;
 }
 
+.panel-sticky {
+  /* Se pega justo debajo de tu barra morada de arriba (que ya es pegajosa),
+     usando --topbar-h para que nunca se encimen una con otra. */
+  position: sticky;
+  top: var(--topbar-h, 0px);
+  z-index: 20;
+  background-color: var(--panel-dark);
+  padding-top: 4px;
+  margin: -4px -4px 14px;
+  padding-left: 4px;
+  padding-right: 4px;
+  /* 👉 "Colchón" extra opaco abajo: sin esto, en algunos celulares se
+     alcanza a ver un hilito de la tarjeta de atrás justo en el borde
+     donde termina la barra pegajosa y empieza el scroll normal. */
+  padding-bottom: 6px;
+  /* 👉 Aísla esta barra del resto de la página para que el navegador no
+     tenga que recalcular/repintar todo junto en cada frame de scroll —
+     ayuda a que la barra y las tarjetas de abajo no se "desincronicen"
+     un instante durante un scroll muy rápido. */
+  contain: paint;
+  isolation: isolate;
+}
+
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -261,10 +376,61 @@ onUnmounted(() => {
   margin-bottom: 18px;
 }
 
+.new-order-alert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--green);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.alert-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  margin-left: 4px;
+}
+
+.alert-fade-enter-active,
+.alert-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.alert-fade-enter-from,
+.alert-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 .title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title-main {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.welcome-line {
+  margin: 0;
+  padding-left: 16px; /* alineado con el texto del título, no con el puntito verde */
+  font-size: 12px;
+  font-weight: 600;
+  color: #C9C3DA;
 }
 
 .title h2 {
@@ -298,6 +464,32 @@ onUnmounted(() => {
 .tabs button.active {
   background: white;
   color: var(--ink);
+}
+
+.logout-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #FCA5A5;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notif-btn {
+  border: none;
+  background: var(--pink);
+  color: white;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notif-blocked {
+  font-size: 12px;
+  color: #A79FBF;
+  cursor: help;
 }
 
 .stats {

@@ -5,11 +5,14 @@ import { paymentPolicy, bankAccount, alternativePaymentLink } from '../data/paym
 import { supabase } from '../lib/supabase'
 import { buildOrderWhatsappLink, orderCode } from '../lib/whatsapp'
 import { cart, cartTotal, mobileCartOpen } from '../lib/cart'
-import DesignPreview from './DesignPreview.vue'
+import SizeComparison from './Sizecomparison.vue'
 import WorkGallery from './WorkGallery.vue'
+import DesignCatalogGallery from './DesignCatalogGallery.vue'
+import ReferenceImagesUpload from './Referenceimagesupload.vue'
 import FaqSection from './FaqSection.vue'
 import LocationSection from './LocationSection.vue'
 import HowToApply from './HowToApply.vue'
+import SectionTitle from './SectionTitle.vue'
 import type { CartItem, Order } from '../types'
 
 const copied = ref(false)
@@ -50,8 +53,11 @@ function generateId(): string {
 }
 
 // "form" es la etiqueta que se está configurando ahora mismo, antes de agregarla al pedido.
+// 👉 characterId se queda fijo en 'Otro Personaje': esa entrada de
+// catalog.ts trae el emoji/color (lápiz gris) que usa la tarjeta "Otro
+// Personaje" del catálogo (ver template) como ícono.
 const form = reactive({
-  characterId: characters[0].id,
+  characterId: 'Otro Personaje',
   nameToPrint: '',
   fontId: fonts[0].id,
   sizeId: sizes[0].id,
@@ -62,6 +68,11 @@ const form = reactive({
   note: '',
   wantsPreview: false,
 })
+
+// 📎 Imágenes de referencia (opcionales, máx. 3) que el cliente puede
+// adjuntar con su pedido — se suben a Supabase Storage recién cuando el
+// pedido se envía con éxito (ver submitOrder).
+const referenceImages = ref<File[]>([])
 
 // 👉 El WhatsApp mexicano son 10 dígitos. Se filtra todo lo que no sea número
 // y se corta en 10 dígitos aunque el cliente pegue o escriba más.
@@ -133,14 +144,23 @@ const selectedCharacter = computed(
   () => characters.find((c) => c.id === form.characterId) ?? characters[0]
 )
 
-// Cuando el cliente elige "Otro" (personaje que no está en la lista), escribe
-// aquí qué personaje quiere; esto es lo que se usa como nombre del personaje
-// en vez del genérico "Otro".
+// 👉 El cliente decide con este checkbox si quiere un personaje/diseño
+// distinto al catálogo de arriba. Si NO lo activa, no se le pide nada más
+// (el pedido se agrega igual). Si SÍ lo activa, entonces el campo de texto
+// de abajo aparece y se vuelve obligatorio — porque de nada sirve activar
+// "quiero algo diferente" sin decirnos qué es.
+const wantsCustomCharacter = ref(false)
 const customCharacterName = ref('')
 const effectiveCharacterName = computed(() => {
-  if (selectedCharacter.value.id !== 'otro') return selectedCharacter.value.name
-  return customCharacterName.value.trim() || 'Otro (sin especificar)'
+  if (wantsCustomCharacter.value) return customCharacterName.value.trim() || 'Sin especificar'
+  return 'Diseño del catálogo'
 })
+// 👉 Este es el que se guarda en Supabase (columna character_id). Antes
+// siempre se guardaba 'Otro Personaje' aunque el cliente NO hubiera
+// activado esa tarjeta, lo cual confundía al revisar los pedidos. Ahora
+// solo dice 'Otro Personaje' cuando de verdad se activó; si no, se guarda
+// 'catalogo' para dejar claro que el diseño es uno del catálogo normal.
+const effectiveCharacterId = computed(() => (wantsCustomCharacter.value ? 'Otro Personaje' : 'catalogo'))
 const selectedShape = computed(() => shapes.find((s) => s.id === form.shapeId) ?? shapes[0])
 const selectedSize = computed(() => sizes.find((s) => s.id === form.sizeId) ?? sizes[0])
 const selectedFont = computed(() => fonts.find((f) => f.id === form.fontId) ?? fonts[0])
@@ -171,6 +191,9 @@ function decPackages() {
 // 🔴 Campos obligatorios que se marcan en rojo cuando el cliente intenta
 // agregar una etiqueta o enviar el pedido sin llenarlos. Funciona igual en
 // computadora y en celular (no depende del tamaño de pantalla).
+// 👉 "customCharacter" solo se valida cuando el cliente activó el checkbox
+// de "otro personaje/diseño" (ver wantsCustomCharacter) — si no lo activó,
+// nunca se marca en rojo.
 const fieldErrors = reactive({
   customCharacter: false,
   nameToPrint: false,
@@ -195,7 +218,7 @@ function scrollToField(el: HTMLInputElement | null) {
 }
 
 function addToCart() {
-  const missingCustomCharacter = form.characterId === 'otro' && !customCharacterName.value.trim()
+  const missingCustomCharacter = wantsCustomCharacter.value && !customCharacterName.value.trim()
   const missingName = !form.nameToPrint.trim()
   const missingCustomerName = !form.customerName.trim()
   const missingWhatsapp = form.customerWhatsapp.length !== WHATSAPP_DIGITS
@@ -220,7 +243,7 @@ function addToCart() {
   try {
     const item: CartItem = {
       id: generateId(),
-      character_id: selectedCharacter.value.id,
+      character_id: effectiveCharacterId.value,
       character_name: effectiveCharacterName.value,
       name_to_print: form.nameToPrint.trim(),
       font_id: selectedFont.value.id,
@@ -240,7 +263,7 @@ function addToCart() {
     // el diseño/tamaño/forma se quedan como están por si el cliente quiere repetir.
     form.nameToPrint = ''
     form.packages = 1
-    if (form.characterId === 'otro') customCharacterName.value = ''
+    customCharacterName.value = ''
   } catch (err) {
     // Si algo truena aquí, antes el cliente no veía nada (fallo silencioso).
     // Ahora al menos se entera de que algo salió mal y puede reintentar.
@@ -317,6 +340,72 @@ async function submitOrder() {
     lastOrder.value = data as Order
     sent.value = true
     reviewing.value = false
+
+    // 📋 Además de guardar el pedido completo (con "items" como JSON), se
+    // guarda cada etiqueta como su propia fila en "order_items" — así en
+    // Supabase se puede filtrar/contar por personaje, tamaño, etc. sin
+    // tener que abrir el JSON. Si esto falla, no se le muestra error al
+    // cliente porque su pedido YA se guardó bien; solo se registra en consola.
+    try {
+      const code = orderCode(lastOrder.value)
+      const rows = cart.value.map((item) => ({
+        order_id: lastOrder.value!.id,
+        order_code: code,
+        character_id: item.character_id,
+        character_name: item.character_name,
+        name_to_print: item.name_to_print,
+        font_id: item.font_id,
+        font_label: item.font_label,
+        size_id: item.size_id,
+        size_label: item.size_label,
+        shape_id: item.shape_id,
+        shape_label: item.shape_label,
+        packages: item.packages,
+        quantity: item.quantity,
+        line_total: item.line_total,
+      }))
+      const { error: itemsError } = await supabase.from('order_items').insert(rows)
+      if (itemsError) console.error('No se pudo guardar el detalle en order_items:', itemsError)
+    } catch (itemsErr) {
+      console.error('No se pudo guardar el detalle en order_items:', itemsErr)
+    }
+
+    // 📎 Si el cliente adjuntó imágenes de referencia, se suben ahora al
+    // bucket privado (usando el id del pedido ya creado) y se guardan sus
+    // rutas en la columna "reference_images". Igual que con order_items,
+    // si algo falla aquí no se le muestra error al cliente — su pedido ya
+    // quedó guardado bien de todas formas.
+    if (referenceImages.value.length > 0) {
+      try {
+        const orderId = lastOrder.value!.id!
+        const paths: string[] = []
+
+        for (let i = 0; i < referenceImages.value.length; i++) {
+          const file = referenceImages.value[i]
+          const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+          const path = `${orderId}/${i + 1}-${safeName}`
+          const { error: uploadError } = await supabase.storage
+            .from('referencias-pedido')
+            .upload(path, file, { upsert: true })
+          if (uploadError) {
+            console.error('No se pudo subir una imagen de referencia:', uploadError)
+            continue
+          }
+          paths.push(path)
+        }
+
+        if (paths.length > 0) {
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({ reference_images: paths })
+            .eq('id', orderId)
+          if (updateError) console.error('No se pudo guardar reference_images:', updateError)
+          else lastOrder.value!.reference_images = paths
+        }
+      } catch (refErr) {
+        console.error('No se pudieron subir las imágenes de referencia:', refErr)
+      }
+    }
   } catch (err) {
     console.error(err)
     errorMsg.value =
@@ -336,6 +425,8 @@ function newOrder() {
   form.packages = 1
   form.note = ''
   form.wantsPreview = false
+  referenceImages.value = []
+  wantsCustomCharacter.value = false
   customCharacterName.value = ''
   fieldErrors.customCharacter = false
   fieldErrors.nameToPrint = false
@@ -345,44 +436,45 @@ function newOrder() {
 </script>
 
 <template>
+  <div class="page-header">
+    <h1>Elige tu diseño</h1>
+    <p class="subtitle">Etiquetas planchables para ropa · se planchan, sin costura · vendidas por paquete completo, ${{ PACKAGE_PRICE }} c/u.</p>
+  </div>
+
   <div class="layout">
     <section class="catalog">
-      <h1>Elige tu diseño</h1>
-      <p class="subtitle">Etiquetas planchables para ropa · se planchan, sin costura · vendidas por paquete completo, ${{ PACKAGE_PRICE }} c/u.</p>
-
       <WorkGallery />
       <FaqSection />
       <LocationSection />
       <HowToApply />
 
-      <h2 class="section-divider">Escoge tu personaje</h2>
-      <div class="grid">
-        <button
-          v-for="c in characters"
-          :key="c.id"
-          class="char-card"
-          :class="{ active: c.id === form.characterId }"
-          @click="form.characterId = c.id"
-          type="button"
-        >
-          <div class="char-avatar" :style="{ background: c.color }">
-            <img v-if="c.image" :src="c.image" :alt="c.name" />
-            <span v-else class="emoji-fallback">{{ c.emoji }}</span>
-          </div>
-          <strong>{{ c.name }}</strong>
-        </button>
-      </div>
+      <SectionTitle icon="character" divider>Escoge tu personaje</SectionTitle>
+      <DesignCatalogGallery />
 
-      <div class="field-row" v-if="form.characterId === 'otro'">
+      <button
+        type="button"
+        class="otro-personaje-card"
+        :class="{ active: wantsCustomCharacter }"
+        @click="wantsCustomCharacter = !wantsCustomCharacter"
+      >
+        <div class="char-avatar" :style="{ background: selectedCharacter.color }">
+          <img v-if="selectedCharacter.image" :src="selectedCharacter.image" :alt="selectedCharacter.name" />
+          <span v-else class="emoji-fallback">{{ selectedCharacter.emoji }}</span>
+        </div>
+        <strong>{{ selectedCharacter.name }}</strong>
+      </button>
+      <p class="otro-personaje-hint">👆 Tócalo si quieres un diseño distinto al del catálogo de arriba</p>
+
+      <div class="field-row" v-if="wantsCustomCharacter">
         <label class="field">
-          <span>¿Cuál personaje? *</span>
+          <span>¿Cuál personaje o diseño quieres? *</span>
           <input
             v-model="customCharacterName"
             ref="customCharacterInput"
             @input="fieldErrors.customCharacter = !customCharacterName.trim()"
             @blur="fieldErrors.customCharacter = !customCharacterName.trim()"
             type="text"
-            placeholder="Ej. Pokemon Bulbasaur, Bluey, Capibara..."
+            placeholder="Ej. Stitch, Hello Kitty, Pokémon Bulbasaur, Bluey..."
             :class="{ invalid: fieldErrors.customCharacter }"
           />
           <p class="field-hint">Sé específico: si es un Pokémon dinos cuál, si es de una serie dinos el nombre exacto del personaje.</p>
@@ -407,7 +499,7 @@ function newOrder() {
       </div>
 
       <div class="field">
-        <span class="section-divider field-label-inline">Tipo de letra</span>
+        <SectionTitle icon="font" divider>Tipo de letra</SectionTitle>
         <div class="option-rows">
           <button
             v-for="f in fonts"
@@ -424,7 +516,7 @@ function newOrder() {
       </div>
 
       <div class="field">
-        <span class="section-divider field-label-inline">Tamaño</span>
+        <SectionTitle icon="ruler" divider>Tamaño</SectionTitle>
         <div class="option-rows">
           <button
             v-for="s in sizes"
@@ -437,14 +529,19 @@ function newOrder() {
             <div class="option-row-thumb-wrap" v-if="sizeThumb(s)">
               <img class="option-row-thumb" :src="sizeThumb(s)" :alt="s.label" />
             </div>
-            <span class="option-row-label">{{ s.label }} · {{ s.piecesPerPackage }} pzas</span>
+            <span class="option-row-text">
+              <span class="option-row-label">{{ s.label }}</span>
+              <span class="option-row-qty">{{ s.piecesPerPackage }} pzas</span>
+            </span>
           </button>
         </div>
         <p class="option-caption">${{ PACKAGE_PRICE }} cualquier medida</p>
+
+        <SizeComparison :sizes="sizes" :selected-id="form.sizeId" />
       </div>
 
       <div class="field" v-if="shapes.length > 1">
-        <span class="section-divider field-label-inline">Forma</span>
+        <SectionTitle icon="shape" divider>Forma</SectionTitle>
         <div class="pill-group">
           <button
             v-for="s in shapes"
@@ -454,34 +551,23 @@ function newOrder() {
             :class="{ active: s.id === form.shapeId }"
             @click="form.shapeId = s.id"
           >
-            {{ s.label }}
+            <span>{{ s.label }}</span>
+            <span v-if="s.id === form.shapeId" class="pill-check">✓</span>
           </button>
         </div>
       </div>
       <div class="field" v-else>
-        <span class="section-divider field-label-inline">Forma (fija)</span>
+        <SectionTitle icon="shape" divider>Forma (fija)</SectionTitle>
         <div class="fixed-shape-note">📐 {{ shapes[0].label }}</div>
       </div>
 
       <div class="field package-info">
-        <span>Sobre los paquetes</span>
+        <SectionTitle icon="info">Sobre los paquetes</SectionTitle>
         <div class="fixed-shape-note">
           👕 Etiquetas planchables para ropa. Se venden solo por paquete completo del tamaño
-          elegido — no hay unidades sueltas.
+          elegido ({{ selectedSize.piecesPerPackage }} etiquetas) — no hay unidades sueltas.
         </div>
       </div>
-
-      <DesignPreview
-        :emoji="selectedCharacter.emoji"
-        :image="selectedCharacter.image"
-        :color="selectedCharacter.color"
-        :name="form.nameToPrint"
-        :shape-id="selectedShape.id"
-        :size-id="selectedSize.id"
-        :font-family="selectedFont.fontFamily"
-        :width-cm="selectedSize.widthCm"
-        :height-cm="selectedSize.heightCm"
-      />
 
       <div class="add-item-box">
         <div class="qty-row">
@@ -492,14 +578,14 @@ function newOrder() {
             <button type="button" @click="incPackages">+</button>
           </div>
         </div>
-        <p class="labels-count">= {{ totalLabels }} etiquetas · ${{ total.toFixed(0) }}</p>
+        <p class="labels-count">= {{ totalLabels }} etiquetas · <span class="price-highlight">${{ total.toFixed(0) }}</span></p>
 
         <button type="button" class="cta add-cart-btn" @click="addToCart">
           + Agregar esta etiqueta al pedido
         </button>
       </div>
 
-      <h2 class="section-divider">Tus datos</h2>
+      <SectionTitle icon="notes" divider>Tus datos</SectionTitle>
 
       <div class="field-row">
         <label class="field">
@@ -533,9 +619,11 @@ function newOrder() {
       </div>
 
       <label class="field">
-        <span>Nota para el taller (opcional)</span>
+        <span>Nota para Elinos (opcional)</span>
         <textarea v-model="form.note" rows="3" placeholder="Las quiero para el 15 de octubre, colores pastel..." />
       </label>
+
+      <ReferenceImagesUpload v-model="referenceImages" />
 
       <label class="checkbox-field">
         <input v-model="form.wantsPreview" type="checkbox" />
@@ -730,15 +818,14 @@ function newOrder() {
   align-items: start;
 }
 
-/* 👉 Tarjeta blanca que envuelve TODO el catálogo (título, galería, FAQ,
-   ubicación, formulario). Antes este contenido flotaba directo sobre el
-   fondo de la página; ahora que el fondo de la página es morado, sin esta
-   tarjeta el texto quedaría oscuro sobre morado y no se leería. No mueve
-   ni reordena nada — solo le da un fondo al contenedor que ya existía. */
+/* 👉 Tarjeta morada con borde amarillo que envuelve TODO el catálogo
+   (título, galería, FAQ, ubicación, formulario) — mismo look que la
+   vista previa "Opción B": fondo morado en toda la página y esta
+   tarjeta un poco más clara, con borde amarillo grueso. */
 .catalog {
-  background: white;
+  background: var(--panel-card);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
+  border: 3px solid var(--yellow);
   padding: 24px;
 }
 
@@ -751,50 +838,74 @@ function newOrder() {
 h1 {
   margin: 0 0 4px;
   font-size: 26px;
+  color: white;
 }
 
 .subtitle {
   margin: 0 0 20px;
-  color: var(--ink-soft);
+  color: #D9C3E2;
   font-size: 14px;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
-  margin-bottom: 26px;
-}
-
-.char-card {
+/* 👉 Tarjeta "Otro Personaje": mismo look que antes tenían los círculos de
+   personajes del catálogo (avatar circular + nombre debajo), pero ahora es
+   una sola tarjeta clicable que activa/desactiva el campo de texto de abajo. */
+.otro-personaje-card {
+  position: relative;
   background: white;
-  border: 2px solid var(--border);
+  border: 2px dashed var(--pink);
   border-radius: var(--radius-md);
   padding: 14px 10px;
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  width: 120px;
   transition: 0.15s ease;
+  margin-bottom: 8px;
 }
 
-.char-card:hover {
+.otro-personaje-card:hover {
   border-color: #f3b8d5;
 }
 
-.char-card.active {
+.otro-personaje-card.active {
+  border-style: solid;
   border-color: var(--pink);
   box-shadow: 0 0 0 3px var(--pink-soft);
 }
 
-.char-avatar img,
-.summary-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* 👉 Misma palomita que las demás opciones seleccionadas (letra/tamaño):
+   aparece solo cuando está activo, y desaparece en cuanto se vuelve a
+   tocar la tarjeta (porque el click alterna wantsCustomCharacter). */
+.otro-personaje-card.active::after {
+  content: '✓';
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--pink);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
-.char-avatar {
+.otro-personaje-hint {
+  margin: 0 0 16px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #D9C3E2;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.otro-personaje-card .char-avatar {
   width: 100px;
   height: 100px;
   border-radius: 50%;
@@ -805,12 +916,19 @@ h1 {
   font-size: 30px;
 }
 
-.char-card strong {
+.otro-personaje-card strong {
   font-size: 14px;
 }
 
-.char-card .emoji-fallback {
+.otro-personaje-card .emoji-fallback {
   font-size: 30px;
+}
+
+.char-avatar img,
+.summary-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .field-row {
@@ -835,12 +953,12 @@ h1 {
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--ink-soft);
+  color: var(--yellow);
 }
 
 .field input,
 .field textarea {
-  border: 1px solid var(--border);
+  border: 2px solid var(--pink);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-size: 14px;
@@ -878,12 +996,12 @@ h1 {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: var(--cream);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   margin-bottom: 16px;
   font-size: 13px;
-  color: var(--ink);
+  color: white;
   cursor: pointer;
 }
 
@@ -899,7 +1017,7 @@ h1 {
   display: block;
   font-style: normal;
   font-size: 11px;
-  color: var(--ink-soft);
+  color: #D9C3E2;
   margin-top: 2px;
 }
 
@@ -910,6 +1028,10 @@ h1 {
 }
 
 .pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: none;
   background: var(--ink);
   color: white;
@@ -925,16 +1047,23 @@ h1 {
 }
 
 .pill.outline {
-  background: white;
-  color: var(--ink);
-  border: 1px solid var(--border);
+  background: transparent;
+  color: #D9C3E2;
+  border: 2px solid rgba(255, 255, 255, 0.25);
   opacity: 1;
 }
 
+.pill-check {
+  /* 👉 Hereda el color del texto del pill (amarillo cuando está activo,
+     ver .pill.outline.active más abajo) para que combine con el borde. */
+  color: inherit;
+  font-weight: 800;
+}
+
 .pill.outline.active {
-  border-color: var(--green);
-  color: var(--green);
-  background: #F0FDF4;
+  border-color: var(--yellow);
+  color: var(--yellow);
+  background: rgba(250, 204, 21, 0.12);
 }
 
 .fixed-shape-note {
@@ -942,15 +1071,15 @@ h1 {
   align-items: center;
   gap: 6px;
   width: fit-content;
-  background: var(--cream);
-  border: 1px dashed #D8CBB0;
+  background: transparent;
+  border: 2px dashed var(--yellow);
   border-radius: 999px;
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
-  color: var(--ink-soft);
+  color: #D9C3E2;
 }
 
 .summary {
@@ -1059,22 +1188,28 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--cream);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
   padding: 10px 14px;
   margin-bottom: 6px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: white;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .labels-count {
   font-size: 12px;
-  color: var(--ink-soft);
+  color: #D9C3E2;
   margin: 0 0 16px;
   text-align: right;
+}
+
+.price-highlight {
+  color: var(--yellow);
+  font-weight: 800;
+  font-size: 13px;
 }
 
 .package-info {
@@ -1091,14 +1226,16 @@ h1 {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--border);
-  background: white;
+  border: none;
+  background: var(--yellow);
+  color: var(--brand-purple);
   font-size: 16px;
+  font-weight: 700;
   line-height: 1;
 }
 
 .stepper strong {
-  color: var(--ink);
+  color: white;
   font-size: 15px;
 }
 
@@ -1413,15 +1550,8 @@ h1 {
 }
 
 /* 🛒 Estilos del carrito */
-.section-divider {
-  font-size: 15px;
-  margin: 28px 0 16px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
-
 .add-item-box {
-  background: var(--pink-soft);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   padding: 14px;
   margin-bottom: 8px;
@@ -1496,29 +1626,60 @@ h1 {
 }
 
 .option-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
-  background: white;
-  border: 2px solid var(--border);
+  /* 👉 Antes eran tarjetas blancas — sobre el panel morado se veían muy
+     "planas" y desconectadas del resto del diseño. Ahora son oscuras y
+     translúcidas (blanco al 8% sobre el morado del panel) para que se
+     fundan con el fondo en vez de resaltar como un bloque ajeno. */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-md);
   padding: 10px 14px 10px 10px;
   text-align: left;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
 
 .option-row.active {
-  border-color: var(--pink);
-  background: var(--pink-soft);
+  border: 2px solid var(--pink);
+  background: rgba(236, 72, 153, 0.22);
+  /* 👉 Aro de sombra rosa + la palomita en la esquina siguen marcando
+     cuál está elegida, ahora sobre el fondo oscuro translúcido. */
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.18);
+}
+
+.option-row.active::after {
+  content: '✓';
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--pink);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 .option-row-thumb {
   width: 168px;
   height: 112px;
   border-radius: var(--radius-sm);
+  /* 👉 Se probó "cover" para quitar el blanco, pero eso le hacía zoom y
+     recortaba las fotos que no tienen la misma proporción que el
+     recuadro (ej. 4x1.5cm y 5x2cm). Se regresa a "contain" para que la
+     foto se vea completa, sin zoom — el blanco se quita dejando el
+     fondo transparente en vez de agregar un color de relleno. */
   object-fit: contain;
   flex-shrink: 0;
-  background: var(--cream);
-  padding: 4px;
+  background: transparent;
   display: block;
 }
 
@@ -1527,29 +1688,33 @@ h1 {
   flex-shrink: 0;
 }
 
+.option-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .option-row-label {
   font-size: 13px;
   font-weight: 700;
-  color: var(--ink);
+  /* 👉 Antes var(--ink) (casi negro), pensado para la tarjeta blanca de
+     antes. Con el fondo oscuro translúcido nuevo, el texto necesita ser
+     claro para poder leerse. */
+  color: white;
+}
+
+.option-row-qty {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--pink);
 }
 
 .option-caption {
   text-align: center;
   font-size: 12px;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: #D9C3E2;
   margin: 6px 0 0;
-}
-
-/* Título de sección (Tipo de letra / Tamaño / Forma) reutilizando el
-   estilo de .section-divider pero dentro de .field, que por defecto
-   pone el texto en mayúsculas y gris — aquí se resetea eso. */
-.field-label-inline {
-  display: block;
-  text-transform: none;
-  letter-spacing: normal;
-  color: var(--ink);
-  font-weight: 700;
 }
 
 .field-hint {
@@ -1558,7 +1723,7 @@ h1 {
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
-  color: var(--ink-soft);
+  color: #D9C3E2;
   line-height: 1.4;
 }
 </style>

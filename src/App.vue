@@ -1,10 +1,45 @@
 <script setup lang="ts">
 import { RouterView, useRoute } from 'vue-router'
+import { onMounted, ref } from 'vue'
 import { LOGO_IMAGE, CART_ICON_IMAGE } from './data/branding'
 import { cartCount, mobileCartOpen } from './lib/cart'
+import { buildContactWhatsappLink, buildContactWhatsappCleanLink } from './lib/whatsapp'
 import SiteFooter from './components/Sitefooter.vue'
 
 const route = useRoute()
+
+// 👉 Abre WhatsApp con el mensaje completo. Se saca del template como
+// función normal porque la flecha inline `() => window.open(...)` le
+// causaba error de tipos a vue-tsc en el @click.
+function openWhatsappFab() {
+  window.open(buildContactWhatsappLink(), '_blank', 'noopener')
+}
+
+// 💬 Globito con mensaje corto sobre el botón de WhatsApp, para invitar
+// a la gente a escribir sin que el botón solo (sin texto) pase
+// desapercibido. Reglas:
+// - Aparece solo, con un pequeño retraso (no de golpe al cargar).
+// - Se puede cerrar con la X.
+// - Si lo cierran, no vuelve a salir por unos días (se guarda la fecha
+//   en localStorage) — así no resulta repetitivo en cada visita.
+const WHATSAPP_BUBBLE_KEY = 'elinos_whatsapp_bubble_dismissed_at'
+const WHATSAPP_BUBBLE_SNOOZE_DAYS = 7
+const showWhatsappBubble = ref(false)
+
+function dismissWhatsappBubble() {
+  showWhatsappBubble.value = false
+  localStorage.setItem(WHATSAPP_BUBBLE_KEY, String(Date.now()))
+}
+
+onMounted(() => {
+  const dismissedAt = Number(localStorage.getItem(WHATSAPP_BUBBLE_KEY) ?? 0)
+  const daysSinceDismissed = (Date.now() - dismissedAt) / (1000 * 60 * 60 * 24)
+  if (daysSinceDismissed < WHATSAPP_BUBBLE_SNOOZE_DAYS) return
+
+  setTimeout(() => {
+    showWhatsappBubble.value = true
+  }, 2500)
+})
 </script>
 
 <template>
@@ -45,6 +80,38 @@ const route = useRoute()
       <RouterView />
     </main>
     <SiteFooter />
+
+    <!-- 📱 Botón flotante de WhatsApp: fijo abajo a la derecha en toda la
+         página (menos en /panel, que es solo para el administrador). Abre
+         un chat directo al número del taller, sin datos de ningún pedido.
+         👉 El href que se ve al pasar el mouse es la versión "limpia"
+         (sin el texto), pero el @click.prevent cancela esa navegación y
+         abre la versión completa con el mensaje precargado. -->
+    <div v-if="route.path !== '/panel'" class="whatsapp-fab-wrap">
+      <transition name="bubble-pop">
+        <div v-if="showWhatsappBubble" class="whatsapp-bubble">
+          <button
+            type="button"
+            class="whatsapp-bubble-close"
+            aria-label="Cerrar mensaje"
+            @click="dismissWhatsappBubble"
+          >
+            ✕
+          </button>
+          <span>¿Dudas? Escríbenos 😊</span>
+        </div>
+      </transition>
+      <a
+        class="whatsapp-fab"
+        :href="buildContactWhatsappCleanLink()"
+        target="_blank"
+        rel="noopener"
+        aria-label="Escríbenos por WhatsApp"
+        @click.prevent="openWhatsappFab"
+      >
+        <img src="/icon/whatsapp.png" alt="WhatsApp" />
+      </a>
+    </div>
   </div>
 </template>
 
@@ -61,16 +128,12 @@ const route = useRoute()
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  /* 👉 Header pegajoso: se queda pegado arriba mientras se hace scroll.
-     Los márgenes negativos lo sacan del padding de .shell para que llegue
-     de borde a borde de la pantalla (como una barra de app), y el padding
-     interno recupera la separación visual del contenido. */
   position: sticky;
   top: 0;
   z-index: 45;
   margin: -24px -20px 28px;
   padding: 14px 20px;
-  background: var(--brand-purple);
+  background: #441058;
   border-bottom: 4px solid var(--pink);
 }
 
@@ -173,6 +236,94 @@ const route = useRoute()
   border-radius: 999px;
   font-size: 10px;
   font-weight: 800;
+}
+
+.whatsapp-fab-wrap {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.whatsapp-bubble {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 30px 10px 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+
+/* Colita del globito, apuntando hacia el botón de WhatsApp de abajo. */
+.whatsapp-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  right: 22px;
+  width: 12px;
+  height: 12px;
+  background: var(--cream);
+  transform: rotate(45deg);
+}
+
+.whatsapp-bubble-close {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bubble-pop-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.bubble-pop-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.bubble-pop-enter-from,
+.bubble-pop-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.95);
+}
+
+.whatsapp-fab {
+  position: static;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.whatsapp-fab:hover {
+  transform: scale(1.06);
+}
+
+.whatsapp-fab img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 @media (max-width: 860px) {

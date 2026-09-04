@@ -8,7 +8,7 @@ export const characters: Character[] = [
   { id: 'Anna', name: 'Anna', emoji: '👑', color: '#FED7AA', image: '/characters/ana.png' },
   { id: 'Pikachu', name: 'Pikachu', emoji: '😼', color: '#f1eaaa', image: '/characters/pikachu.png' },
   { id: 'Sonic', name: 'Sonic', emoji: '⚡', color: '#DBEAFE', image: '/characters/sonic.png' },
-  { id: 'otro', name: 'Otro', emoji: '✏️', color: '#E5E7EB' },
+  { id: 'Otro Personaje', name: 'Otro Personaje', emoji: '✏️', color: '#E5E7EB' },
 ]
 
 
@@ -18,15 +18,15 @@ export const shapes: ShapeOption[] = [
 ]
 
 export const sizes: SizeOption[] = [
-  { id: '3x2', label: '3 x 2 cm', piecesPerPackage: 85, widthCm: 3, heightCm: 2, images: ['/sizes/3x2/example2.png'] },
-  { id: '4x1.5', label: '4 x 1.5 cm', piecesPerPackage: 65, widthCm: 4, heightCm: 1.5, images: ['/sizes/4x1/example3.jpeg'] },
-  { id: '5x2', label: '5 x 2 cm', piecesPerPackage: 45, widthCm: 5, heightCm: 2, images: ['/sizes/5x2/example2.jpeg'] },
+  { id: '3x2', label: '3 x 2 cm', piecesPerPackage: 85, widthCm: 3, heightCm: 2, images: ['/sizes/3x2/example2.jpeg'], compareImage: '/sizes/compare/3x2.jpeg' },
+  { id: '4x1.5', label: '4 x 1.5 cm', piecesPerPackage: 65, widthCm: 4, heightCm: 1.5, images: ['/sizes/4x1/example3.jpeg'], compareImage: '/sizes/compare/4x1.5.jpeg' },
+  { id: '5x2', label: '5 x 2 cm', piecesPerPackage: 45, widthCm: 5, heightCm: 2, images: ['/sizes/5x2/example2.jpeg'], compareImage: '/sizes/compare/5x2.jpeg' },
 ]
 
 export const fonts: FontOption[] = [
-  { id: 'letsplay', label: 'LetsPlay', fontFamily: 'LetsPlay', image: '/fontsimage/letsplay.png' },
-  { id: 'pizzatime', label: 'Pizza Time', fontFamily: 'PizzaTime', image: '/fontsimage/pizzatime.png' },
-  { id: 'kgmissterward', label: 'KG Miss Sterward', fontFamily: 'KGMissSterward', image: '/fontsimage/kgmisssterward.png' },
+  { id: 'letsplay', label: 'LetsPlay', fontFamily: 'LetsPlay', image: '/fontsimage/letsplay.jpeg' },
+  { id: 'pizzatime', label: 'Pizza Time', fontFamily: 'PizzaTime', image: '/fontsimage/pizzatime.jpeg' },
+  { id: 'kgmissterward', label: 'KG Miss Sterward', fontFamily: 'KGMissSterward', image: '/fontsimage/kgmisssterward.jpeg' },
 ]
 
 // Precio fijo por paquete completo, sin importar el tamaño elegido.

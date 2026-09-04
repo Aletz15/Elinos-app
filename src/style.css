@@ -1,16 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
+
 :root {
   --cream: #FBF6ED;
   --ink: #201A2B;
   --ink-soft: #6B6577;
   --pink: #EC4899;
   --pink-soft: #FDF2F8;
-  --panel-dark: #241E33;
-  --panel-card: #322B45;
+  --panel-dark: #441058;
+  --panel-card: #551A6B;
   /* 👉 Morado del logo, para el fondo de la barra superior. Este tono es
      un morado cercano al de tu logo — si no es exactamente el mismo, abre
      tu logo en cualquier "selector de color" (photopea.com, o el cuentagotas
      de Photoshop/Figma) y reemplaza este código de 6 letras/números. */
-  --brand-purple: #2a1150;
+  --brand-purple: #441058;
   --green: #22C55E;
   --amber: #F59E0B;
   --yellow: #FACC15;
@@ -19,6 +21,17 @@
   --radius-lg: 20px;
   --radius-md: 14px;
   --radius-sm: 10px;
+  /* 👉 Alto real de la barra morada de arriba (App.vue > .topbar), para que
+     cualquier otra barra "pegajosa" (como la del Panel de pedidos) sepa
+     exactamente dónde empezar y no se encime con ella. Si cambias el
+     tamaño del logo o el padding de .topbar, ajusta este valor también. */
+  --topbar-h: 132px;
+}
+
+@media (max-width: 860px) {
+  :root {
+    --topbar-h: 84px;
+  }
 }
 
 /* 👉 Fuentes reales de las etiquetas. Copia los archivos a public/fonts/
@@ -55,9 +68,9 @@ html, body, #app {
 
 body {
   margin: 0;
-  background: var(--cream);
+  background: var(--panel-dark);
   color: var(--ink);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Fredoka', 'Segoe UI', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -77,4 +90,23 @@ a {
 ::selection {
   background: var(--pink);
   color: white;
+}
+
+/* 👉 En celular, al deslizar el dedo para bajar la página, a veces el
+   navegador interpreta el gesto como "selecciona este texto/imagen" en
+   vez de solo desplazar — se ve como un tinte azul repentino sobre el
+   header o los íconos. Es más común en elementos "pegados" arriba
+   (position: sticky), como la barra de Elinos. Estas reglas evitan esa
+   selección accidental en botones, links e imágenes decorativas (los
+   campos de texto del formulario, como "Tu nombre", siguen
+   seleccionándose normal, porque los navegadores no aplican esto a lo
+   que escribes). También se quita el resaltado azul por defecto que
+   Chrome pone al tocar un link o botón. */
+a, button, img {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.topbar, .whatsapp-fab-wrap, img {
+  -webkit-user-select: none;
+  user-select: none;
 }

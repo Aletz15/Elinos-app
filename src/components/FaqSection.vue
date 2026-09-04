@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { faqItems } from '../data/faq'
+import SectionTitle from './SectionTitle.vue'
 
 const openIndex = ref<number | null>(null)
 function toggle(i: number) {
@@ -10,7 +11,7 @@ function toggle(i: number) {
 
 <template>
   <section class="faq-wrap">
-    <h2 class="faq-title">Preguntas frecuentes</h2>
+    <SectionTitle icon-image="/icon/FAQicono.png">Preguntas frecuentes</SectionTitle>
     <div class="faq-list">
       <div v-for="(item, i) in faqItems" :key="i" class="faq-item">
         <button type="button" class="faq-question" @click="toggle(i)">
@@ -30,31 +31,21 @@ function toggle(i: number) {
 <style scoped>
 .faq-wrap {
   margin-bottom: 24px;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 18px 16px;
-}
-
-.faq-title {
-  font-size: 16px;
-  margin: 0 0 14px;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .faq-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .faq-item {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 4px;
-}
-
-.faq-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+  border: 2px solid var(--pink);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
 }
 
 .faq-question {
@@ -68,13 +59,13 @@ function toggle(i: number) {
   padding: 12px 4px;
   font-size: 14px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--pink);
   text-align: left;
   line-height: 1.4;
 }
 
 .chevron {
-  color: var(--ink-soft);
+  color: #E8A6C7;
   transition: transform 0.15s ease;
   flex-shrink: 0;
 }
@@ -86,7 +77,7 @@ function toggle(i: number) {
 .faq-answer {
   padding: 0 4px 16px;
   font-size: 13.5px;
-  color: var(--ink-soft);
+  color: #D9C3E2;
   line-height: 1.7;
   /* 👉 Respeta los saltos de línea (\n) que escribas en data/faq.ts, para
      poder separar la respuesta en varias líneas/párrafos cortos en vez de

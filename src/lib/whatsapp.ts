@@ -1,5 +1,28 @@
 import type { Order } from '../types'
 
+// Link de contacto general al WhatsApp del taller (botón flotante, footer, etc.)
+// — no lleva datos de ningún pedido, solo abre el chat con un saludo.
+export function buildContactWhatsappLink(): string {
+  const sellerNumber = import.meta.env.VITE_SELLER_WHATSAPP as string | undefined
+  const text = encodeURIComponent('Hola 😊, tengo una pregunta sobre las etiquetas🏷️')
+
+  if (!sellerNumber) {
+    return `https://wa.me/?text=${text}`
+  }
+  return `https://wa.me/${sellerNumber}?text=${text}`
+}
+
+// Versión "limpia" del link, sin el texto precargado — se usa como href
+// visible (lo que se ve al pasar el mouse encima), mientras que al hacer
+// clic sí se abre la versión de arriba con el mensaje completo.
+export function buildContactWhatsappCleanLink(): string {
+  const sellerNumber = import.meta.env.VITE_SELLER_WHATSAPP as string | undefined
+  if (!sellerNumber) {
+    return 'https://wa.me/'
+  }
+  return `https://wa.me/${sellerNumber}`
+}
+
 // Código corto y legible para identificar un pedido a simple vista (ej. #A3F2).
 // Se deriva del id del pedido, así que es el mismo siempre para el mismo pedido.
 export function orderCode(order: Order): string {
@@ -25,14 +48,18 @@ export function buildOrderWhatsappLink(order: Order): string {
   })
 
   const lines = [
-    'Hola, quiero confirmar mi pedido y adjunto mi comprobante de pago.',
+    '¡Hola Elinos! 💜, quiero confirmar mi pedido y adjunto mi comprobante de pago.',
+    '',
     '',
     `Codigo de pedido: ${code}`,
     '',
+    '',
     ...itemLines,
     '',
-    `Total pagado: $${order.total}`,
+    '',
+    `Total pagado: $${order.total}✅`,
     order.note ? `Nota: ${order.note}` : null,
+    '',
     '',
     `Mi nombre: ${order.customer_name}`,
     '',
