@@ -10,7 +10,7 @@ import { computed } from 'vue'
 //    mismo amarillo siempre, sin depender de cómo el celular dibuje un
 //    emoji a color):
 //      <SectionTitle icon="ruler">Tamaño</SectionTitle>
-//    Iconos disponibles: character, font, ruler, shape, notes, info, pin, gallery
+//    Iconos disponibles: character, font, ruler, shape, notes, info, pin, gallery, heart
 //
 // 2) Con tu propia imagen (como el ícono de FAQ). Se "recorta" (mask) y
 //    se pinta del mismo amarillo, para que se vea igual de parejo sin
@@ -64,6 +64,9 @@ const svgIcons: Record<string, string> = {
     <rect x="3" y="4.5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
     <circle cx="8" cy="9.3" r="1.4" fill="currentColor"/>
     <path d="M4.5 15.5l4.3-4.3a1.2 1.2 0 0 1 1.7 0l2 2 2.6-2.6a1.2 1.2 0 0 1 1.7 0l3.2 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  `,
+  heart: `
+    <path d="M12 20s-7.1-4.4-9.4-8.6C1.1 8.3 2.7 5 6.1 5c1.9 0 3.5 1 4.4 2.5C11.4 6 13 5 14.9 5c3.4 0 5 3.3 3.5 6.4C16.1 15.6 12 20 12 20Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
   `,
 }
 

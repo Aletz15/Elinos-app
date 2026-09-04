@@ -185,7 +185,9 @@ function onTouchEnd(e: TouchEvent) {
   justify-content: space-between;
   align-items: center;
   background: transparent;
-  border: 2px solid var(--pink);
+  /* 👉 Antes 2px solid var(--pink) — se deja más discreto, ya que este
+     botón no es la acción principal de la página. */
+  border: 1px solid rgba(236, 72, 153, 0.3);
   border-radius: var(--radius-md);
   padding: 12px 16px;
   font-size: 14px;
@@ -232,8 +234,10 @@ function onTouchEnd(e: TouchEvent) {
 
 .example-card {
   margin: 0;
-  background: white;
-  border: 2px solid var(--pink);
+  background: transparent;
+  /* 👉 Antes 2px solid var(--pink) en cada una de las 17 miniaturas — se
+     deja translúcido, ya que las fotos en sí ya llevan suficiente color. */
+  border: 1px solid rgba(236, 72, 153, 0.3);
   border-radius: 10px;
   overflow: hidden;
 }

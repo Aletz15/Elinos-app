@@ -17,7 +17,8 @@ export const faqItems: FaqItem[] = [
   {
     question: '¿Cuánto tardan en estar listas?',
     answer:
-      'De 1 a 3 días habiles.',
+    'De 1 a 3 días habiles.\n'+
+    '"Porque lo hecho a mano con amor y paciencia siempre vale la pena esperar."'
   },
   {
     question: '¿Dónde recojo o cómo me las entregan?',

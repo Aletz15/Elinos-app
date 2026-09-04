@@ -7,6 +7,7 @@ import { buildOrderWhatsappLink, orderCode } from '../lib/whatsapp'
 import { cart, cartTotal, mobileCartOpen } from '../lib/cart'
 import SizeComparison from './Sizecomparison.vue'
 import WorkGallery from './WorkGallery.vue'
+import WhyChooseSection from './WhyChooseSection.vue'
 import DesignCatalogGallery from './DesignCatalogGallery.vue'
 import ReferenceImagesUpload from './Referenceimagesupload.vue'
 import FaqSection from './FaqSection.vue'
@@ -444,6 +445,7 @@ function newOrder() {
   <div class="layout">
     <section class="catalog">
       <WorkGallery />
+      <WhyChooseSection />
       <FaqSection />
       <LocationSection />
       <HowToApply />
@@ -825,7 +827,11 @@ function newOrder() {
 .catalog {
   background: var(--panel-card);
   border-radius: var(--radius-lg);
-  border: 3px solid var(--yellow);
+  /* 👉 Antes 3px solid var(--yellow) — un marco muy grueso y saturado
+     alrededor de TODO el panel, compitiendo con los botones principales
+     por la atención. Se deja más fino y menos saturado, como un borde
+     "de contorno" en vez de un marco llamativo. */
+  border: 1px solid rgba(250, 204, 21, 0.35);
   padding: 24px;
 }
 

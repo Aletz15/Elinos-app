@@ -43,7 +43,11 @@ function toggle(i: number) {
 }
 
 .faq-item {
-  border: 2px solid var(--pink);
+  /* 👉 Antes 2px solid var(--pink) en CADA pregunta — con 5 preguntas
+     visibles a la vez, eran 5 marcos rosa gritando al mismo tiempo. Se
+     deja un borde fino y translúcido, casi solo para separar una tarjeta
+     de otra, no para llamar la atención. */
+  border: 1px solid rgba(236, 72, 153, 0.3);
   border-radius: var(--radius-sm);
   padding: 0 10px;
 }
