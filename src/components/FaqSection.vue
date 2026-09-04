@@ -47,7 +47,7 @@ function toggle(i: number) {
      visibles a la vez, eran 5 marcos rosa gritando al mismo tiempo. Se
      deja un borde fino y translúcido, casi solo para separar una tarjeta
      de otra, no para llamar la atención. */
-  border: 1px solid rgba(236, 72, 153, 0.3);
+  border: 1px solid rgba(250, 204, 21, 0.4);
   border-radius: var(--radius-sm);
   padding: 0 10px;
 }
@@ -63,7 +63,7 @@ function toggle(i: number) {
   padding: 12px 4px;
   font-size: 14px;
   font-weight: 700;
-  color: var(--pink);
+  color: var(--yellow);
   text-align: left;
   line-height: 1.4;
 }
