@@ -15,6 +15,8 @@ import LocationSection from './LocationSection.vue'
 import HowToApply from './HowToApply.vue'
 import SectionTitle from './SectionTitle.vue'
 import type { CartItem, Order } from '../types'
+import { generateId } from '../lib/id'
+import { NAME_ALLOWED } from '../lib/validation'
 
 const copied = ref(false)
 function copyClabe() {
@@ -35,23 +37,7 @@ function showToast(message: string) {
   }, 2200)
 }
 
-// 🆔 Genera un id único para cada línea del carrito. Algunos navegadores de
-// celular (sobre todo el navegador interno de apps como WhatsApp/Instagram,
-// o versiones viejas de Safari/Android) NO tienen crypto.randomUUID().
-// Antes se usaba crypto.randomUUID() directo: si no existía, la función
-// tronaba en silencio y "Agregar etiqueta" no hacía nada en esos celulares.
-// Esta versión usa crypto.randomUUID() si está disponible y, si no, genera
-// un id igual de único a mano — así el botón funciona en cualquier celular.
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    try {
-      return crypto.randomUUID()
-    } catch {
-      // sigue abajo al método alterno
-    }
-  }
-  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-}
+// 🆔 generateId ahora vive en ../lib/id.ts, compartida con PackagesView.vue.
 
 // "form" es la etiqueta que se está configurando ahora mismo, antes de agregarla al pedido.
 // 👉 characterId se queda fijo en 'Otro Personaje': esa entrada de
@@ -105,8 +91,7 @@ const whatsappErrorText = computed(() => {
   return `Faltan ${missing} dígito${missing === 1 ? '' : 's'}.`
 })
 
-// Solo letras, espacios y acentos/ñ. Sin números ni símbolos raros.
-const NAME_ALLOWED = /[^a-zA-ZÀ-ÿ\u00f1\u00d1\s'-]/g
+// NAME_ALLOWED ahora vive en ../lib/validation.ts, compartida con PackagesView.vue.
 
 function onNameToPrintInput(event: Event) {
   const target = event.target as HTMLInputElement
@@ -136,9 +121,19 @@ const sent = ref(false)
 const errorMsg = ref('')
 const lastOrder = ref<Order | null>(null)
 
+// 👉 El jefe de Elinos necesita SÍ o SÍ que el mensaje con las
+// características del pedido le llegue por WhatsApp (ahí es donde revisa
+// los detalles). Antes, el cliente podía saltarse el botón de WhatsApp y
+// cerrar todo con "Hacer otro pedido" — el pedido quedaba guardado en
+// Supabase, pero Elinos nunca se enteraba. Esta bandera se activa cuando
+// el cliente presiona "Enviar pedido + comprobante por WhatsApp" al menos
+// una vez, y se usa para bloquear la salida hasta que eso pase.
+const whatsappSent = ref(false)
+
 function sendOrderAndProof() {
   if (!lastOrder.value) return
   window.open(buildOrderWhatsappLink(lastOrder.value), '_blank')
+  whatsappSent.value = true
 }
 
 const selectedCharacter = computed(
@@ -417,10 +412,19 @@ async function submitOrder() {
 }
 
 function newOrder() {
+  // 👉 Si el pedido ya se registró (sent === true) pero el cliente todavía
+  // no ha presionado "Enviar pedido + comprobante por WhatsApp", no lo
+  // dejamos salir de aquí — si no, Elinos nunca se entera de ese pedido.
+  if (sent.value && !whatsappSent.value) {
+    showToast('Antes de continuar, envía tu pedido por WhatsApp 👆')
+    return
+  }
+
   sent.value = false
   reviewing.value = false
   mobileCartOpen.value = false
   lastOrder.value = null
+  whatsappSent.value = false
   cart.value = []
   form.nameToPrint = ''
   form.packages = 1
@@ -622,7 +626,7 @@ function newOrder() {
 
       <label class="field">
         <span>Nota para Elinos (opcional)</span>
-        <textarea v-model="form.note" rows="3" placeholder="Las quiero para el 15 de octubre, colores pastel..." />
+        <textarea v-model="form.note" rows="3" placeholder="Ej. Colores pastel, letra cursiva, algún detalle..." />
       </label>
 
       <ReferenceImagesUpload v-model="referenceImages" />
@@ -655,7 +659,10 @@ function newOrder() {
       <div v-else class="cart-list">
         <div v-for="item in cart" :key="item.id" class="cart-item">
           <div>
-            <strong>{{ item.character_name }} · {{ item.name_to_print }}</strong>
+            <strong v-if="item.is_sibling_pack">
+              🎒 {{ item.character_name }} · {{ item.name_to_print }} + {{ item.second_character_name }} · {{ item.second_name_to_print }}
+            </strong>
+            <strong v-else>{{ item.character_name }} · {{ item.name_to_print }}</strong>
             <div class="muted">
               {{ item.font_label }} · {{ item.shape_label }} · {{ item.size_label }} · {{ item.packages }} paquete(s) · {{ item.quantity }} etiquetas
             </div>
@@ -702,7 +709,10 @@ function newOrder() {
         <div class="review-cart-list">
           <div v-for="item in cart" :key="item.id" class="review-item">
             <div>
-              <strong>{{ item.character_name }} · {{ item.name_to_print }}</strong>
+              <strong v-if="item.is_sibling_pack">
+                🎒 {{ item.character_name }} · {{ item.name_to_print }} + {{ item.second_character_name }} · {{ item.second_name_to_print }}
+              </strong>
+              <strong v-else>{{ item.character_name }} · {{ item.name_to_print }}</strong>
               <div class="muted">
                 {{ item.font_label }} · {{ item.shape_label }} · {{ item.size_label }} · {{ item.packages }} paquete(s) · {{ item.quantity }} etiquetas
               </div>
@@ -802,7 +812,14 @@ function newOrder() {
         </button>
         <p class="proof-hint">Se abrirá WhatsApp con todos los datos ya escritos — solo adjunta ahí la foto de tu comprobante.</p>
 
-        <button type="button" class="link-btn" @click="newOrder">Hacer otro pedido</button>
+        <button
+          type="button"
+          class="link-btn"
+          :class="{ 'link-btn-pending': !whatsappSent }"
+          @click="newOrder"
+        >
+          Hacer otro pedido
+        </button>
       </div>
     </div>
 
@@ -1517,6 +1534,14 @@ h1 {
   color: var(--ink-soft);
   text-align: center;
   margin: 8px 0 0;
+}
+
+/* 👉 Mientras el cliente no haya presionado "Enviar pedido + comprobante
+   por WhatsApp" al menos una vez, "Hacer otro pedido" se ve atenuado —
+   sigue siendo clicable (si lo aprietan, se les recuerda con un toast que
+   falta ese paso), pero visualmente no compite con el botón principal. */
+.link-btn-pending {
+  opacity: 0.45;
 }
 
 .toast {

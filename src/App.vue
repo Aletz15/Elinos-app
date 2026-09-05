@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RouterView, useRoute } from 'vue-router'
+import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { onMounted, ref } from 'vue'
 import { LOGO_IMAGE, CART_ICON_IMAGE } from './data/branding'
 import { cartCount, mobileCartOpen } from './lib/cart'
@@ -7,6 +7,16 @@ import { buildContactWhatsappLink, buildContactWhatsappCleanLink } from './lib/w
 import SiteFooter from './components/Sitefooter.vue'
 
 const route = useRoute()
+const router = useRouter()
+
+// 🛒 El panel deslizante "Tu pedido" solo existe dentro de CatalogView.vue
+// (la vista de '/'). Si el cliente está en /paquetes y toca el carrito,
+// primero lo mandamos a '/' y AHÍ SÍ abrimos el panel — mobileCartOpen es
+// compartido (../lib/cart.ts), así que ya aparece abierto en cuanto carga.
+function openCart() {
+  mobileCartOpen.value = true
+  if (route.path !== '/') router.push('/')
+}
 
 // 👉 Abre WhatsApp con el mensaje completo. Se saca del template como
 // función normal porque la flecha inline `() => window.open(...)` le
@@ -55,20 +65,25 @@ onMounted(() => {
           <span>Etiquetas planchables</span>
         </div>
       </div>
-      <!-- Sin barra de navegación pública a propósito: el panel (/panel) es
-           solo para el administrador y ya está protegido con contraseña.
-           Los clientes que entran a la página principal solo ven el catálogo. -->
+      <!-- 🧭 Nav pública simple: solo "Catálogo" y "Paquetes" — el panel
+           (/panel) es solo para el administrador y no aparece aquí, ya está
+           protegido con contraseña aparte. -->
+      <nav v-if="route.path !== '/panel'" class="main-nav">
+        <RouterLink to="/" class="nav-link" :class="{ active: route.path === '/' }">Catálogo</RouterLink>
+        <RouterLink to="/paquetes" class="nav-link" :class="{ active: route.path === '/paquetes' }">📦 Paquetes</RouterLink>
+      </nav>
       <span v-if="route.path === '/panel'" class="admin-tag">Vista de administrador</span>
 
-      <!-- 🛒 Ícono del carrito: solo en la página del catálogo, y solo en
-           celular (en escritorio el pedido ya se ve siempre en su columna
-           lateral, así que este ícono estorbaría). Abre el mismo panel
-           deslizante "Tu pedido" que ya existe en CatalogView.vue. -->
+      <!-- 🛒 Ícono del carrito: en celular en ambas páginas públicas (en
+           escritorio el pedido ya se ve siempre en su columna lateral
+           DENTRO de CatalogView.vue, así que en /paquetes en escritorio no
+           hay columna — el ícono de aquí es la única forma de llegar a
+           revisar el pedido sin tocar "Ir a mi pedido y finalizar"). -->
       <button
-        v-if="route.path === '/'"
+        v-if="route.path === '/' || route.path === '/paquetes'"
         type="button"
         class="header-cart"
-        @click="mobileCartOpen = !mobileCartOpen"
+        @click="openCart"
         aria-label="Ver mi pedido"
       >
         <img :src="CART_ICON_IMAGE" alt="Carrito" />
@@ -192,6 +207,34 @@ onMounted(() => {
   color: white;
   padding: 6px 14px;
   border-radius: 999px;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-link {
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.75);
+  padding: 8px 16px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.nav-link.active {
+  color: var(--brand-purple);
+  background: var(--yellow);
+}
+
+@media (max-width: 860px) {
+  .nav-link {
+    font-size: 12px;
+    padding: 7px 12px;
+  }
 }
 
 /* 🛒 Oculto por completo en escritorio: el pedido ya se ve siempre en su

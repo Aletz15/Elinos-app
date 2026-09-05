@@ -44,6 +44,16 @@ export interface CartItem {
   packages: number
   quantity: number
   line_total: number
+  // 👉 "Pack para Hermanos": cuando is_sibling_pack es true, este ítem
+  // representa a DOS niños en un solo paquete (precio y tamaño fijos, ver
+  // ../data/siblingPack.ts). Los campos de arriba (character_id,
+  // character_name, name_to_print) son del PRIMER niño; estos de abajo son
+  // del segundo. Los demás campos (font_id, size_id, shape_id, packages,
+  // quantity, line_total) se llenan igual que en un ítem normal.
+  is_sibling_pack?: boolean
+  second_character_id?: string
+  second_character_name?: string
+  second_name_to_print?: string
 }
 
 export type OrderStatus = 'pendiente_pago' | 'nuevo' | 'en_produccion' | 'enviada'
