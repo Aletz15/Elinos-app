@@ -102,7 +102,9 @@ const filteredOrders = computed(() => {
       const itemsMatch = (o.items ?? []).some(
         (item) =>
           item.character_name.toLowerCase().includes(q) ||
-          item.name_to_print.toLowerCase().includes(q)
+          item.name_to_print.toLowerCase().includes(q) ||
+          (item.second_character_name?.toLowerCase().includes(q) ?? false) ||
+          (item.second_name_to_print?.toLowerCase().includes(q) ?? false)
       )
       return (
         code.includes(q) ||

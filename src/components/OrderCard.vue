@@ -96,7 +96,23 @@ watch(() => props.order.reference_images, loadReferenceImages)
       </div>
       <div class="items-list">
         <div v-for="item in order.items" :key="item.id" class="item-row">
-          <div>
+          <span
+            class="item-type-tag"
+            :class="{ 'sibling-tag': item.is_sibling_pack }"
+          >{{ item.is_sibling_pack ? 'Paquete' : 'Estándar' }}</span>
+          <div v-if="item.is_sibling_pack" class="item-body">
+            <strong>🎒 Pack para Hermanos</strong>
+            <div class="meta sibling-child">
+              Niño 1: {{ item.character_name }} · "{{ item.name_to_print }}"
+            </div>
+            <div class="meta sibling-child">
+              Niño 2: {{ item.second_character_name }} · "{{ item.second_name_to_print }}"
+            </div>
+            <div class="meta">
+              {{ item.font_label }} · {{ item.shape_label }} · {{ item.size_label }} · {{ item.packages }} paquete(s) · {{ item.quantity }} etiquetas
+            </div>
+          </div>
+          <div v-else class="item-body">
             <strong>{{ item.character_name }} · {{ item.name_to_print }}</strong>
             <div class="meta">
               {{ item.font_label }} · {{ item.shape_label }} · {{ item.size_label }} · {{ item.packages }} paquete(s) · {{ item.quantity }} etiquetas
@@ -112,13 +128,13 @@ watch(() => props.order.reference_images, loadReferenceImages)
     </header>
 
     <div class="customer">
-      <span>{{ order.customer_name }}</span>
+      <span>👤 {{ order.customer_name }}</span>
       <a
         v-if="order.customer_whatsapp"
         :href="`https://wa.me/${order.customer_whatsapp.replace(/\\D/g, '')}`"
         target="_blank"
       >
-        {{ order.customer_whatsapp }}
+        📱 {{ order.customer_whatsapp }}
       </a>
     </div>
 
@@ -226,6 +242,30 @@ header {
   gap: 8px;
 }
 
+.item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-type-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: #A79FBF;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.item-type-tag.sibling-tag {
+  color: var(--ink);
+  background: var(--yellow);
+  border-color: var(--yellow);
+}
+
 .item-row strong {
   font-size: 13px;
 }
@@ -242,6 +282,11 @@ header {
   font-size: 12px;
   color: #A79FBF;
   margin-top: 2px;
+}
+
+.sibling-child {
+  color: #D9C3E2;
+  font-weight: 600;
 }
 
 .total-row {

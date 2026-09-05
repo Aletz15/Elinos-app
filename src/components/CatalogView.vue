@@ -359,6 +359,10 @@ async function submitOrder() {
         packages: item.packages,
         quantity: item.quantity,
         line_total: item.line_total,
+        is_sibling_pack: item.is_sibling_pack ?? false,
+        second_character_id: item.second_character_id ?? null,
+        second_character_name: item.second_character_name ?? null,
+        second_name_to_print: item.second_name_to_print ?? null,
       }))
       const { error: itemsError } = await supabase.from('order_items').insert(rows)
       if (itemsError) console.error('No se pudo guardar el detalle en order_items:', itemsError)
@@ -626,7 +630,7 @@ function newOrder() {
 
       <label class="field">
         <span>Nota para Elinos (opcional)</span>
-        <textarea v-model="form.note" rows="3" placeholder="Ej. Colores pastel, letra cursiva, algún detalle..." />
+        <textarea v-model="form.note" rows="3" placeholder="Ej. Colores pastel, letra cursiva, algún detalle especial..." />
       </label>
 
       <ReferenceImagesUpload v-model="referenceImages" />

@@ -219,15 +219,33 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 8px 16px;
   border-radius: 999px;
   white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.nav-link:active {
+  transform: scale(0.96);
 }
 
 .nav-link.active {
   color: var(--brand-purple);
   background: var(--yellow);
+  border-color: var(--yellow);
+}
+
+.nav-link.active:hover {
+  background: var(--yellow);
+  border-color: var(--yellow);
 }
 
 @media (max-width: 860px) {
